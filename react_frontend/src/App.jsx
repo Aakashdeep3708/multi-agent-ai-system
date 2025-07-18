@@ -12,6 +12,10 @@ import QAGenerator from "./tasks/qa_generator";
 import DoubtSolve from "./tasks/doubt_solving";
 import Notes from "./tasks/notes";
 import AdminBoard from "./pages/AdminBoard";
+import UserList from "./pages/userList";
+import ActivityLog from "./pages/userActivity";
+import Feedback from "./pages/feedback";
+
 
 export default function App() {
   return (
@@ -30,6 +34,10 @@ export default function App() {
         <Route path="/doubt" element={<DoubtSolve />} />
         <Route path="/notes" element={<Notes />} />
         <Route path="/AdminBoard" element={<AdminBoard />} />
+        <Route path="/admin/users" element={<UserList />} />
+        <Route path="/admin/activities" element={<ActivityLog />} />
+        <Route path="/Feedback" element={<Feedback />} />
+
 
       </Routes>
     </Router>

@@ -15,6 +15,14 @@ export default function Login() {
   const [animationType, setAnimationType] = useState("zoom-in");
   const navigate = useNavigate();
 
+  // 🔁 Redirect if already logged in
+  useEffect(() => {
+    const user = localStorage.getItem("user");
+    if (user) {
+      navigate("/"); // or "/" based on your default homepage
+    }
+  }, [navigate]);
+
   useEffect(() => {
     const animations = [
       "zoom-in",
@@ -46,14 +54,19 @@ export default function Login() {
       const res = await fetch("http://localhost:5000/password-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        localStorage.setItem("user", JSON.stringify({ name: data.name }));
+        localStorage.setItem("user", JSON.stringify({ name: data.name, role: data.role }));
         alert(`${data.message}`);
-        navigate("/dashboard");
+        if (data.role === "admin") {
+          navigate("/AdminBoard");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         alert(data.error);
       }
@@ -71,14 +84,19 @@ export default function Login() {
       const res = await fetch("http://localhost:5000/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ image: base64Image.split(",")[1] }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        localStorage.setItem("user", JSON.stringify({ name: data.name }));
+        localStorage.setItem("user", JSON.stringify({ name: data.name, role: data.role }));
         alert(`${data.message}`);
-        navigate("/dashboard");
+        if (data.role === "admin") {
+          navigate("/AdminBoard");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         alert(data.error);
       }

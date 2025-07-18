@@ -7,12 +7,14 @@ const Navbar = () => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const [isScrolling, setIsScrolling] = useState(true);
   const [user, setUser] = useState(null);
 
-  useEffect(() => {
-    setIsScrolling(location.pathname === "/");
-  }, [location]);
+  const navLinks = [
+    { name: "Home", path: "/", type: ["route", "scroll"] },
+    { name: "About", path: "about", type: ["scroll"] },
+    { name: "Services", path: "services", type: ["scroll"] },
+    { name: "Contact", path: "contact", type: ["scroll"] },
+  ];
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
@@ -29,66 +31,48 @@ const Navbar = () => {
     navigate("/");
   };
 
-  const navLinks = [
-    { name: "Home", path: "/", type: "route" },
-    { name: "About", path: "about", type: "scroll" },
-    { name: "Services", path: "services", type: "scroll" },
-    { name: "Contact", path: "contact", type: "scroll" },
-  ];
-
-  const authLink = user
-    ? { name: `${user.name}`, path: "/dashboard", type: "route" }
-    : { name: "Login", path: "/login", type: "route" };
+  const handleSmoothScroll = (id) => {
+    const section = document.getElementById(id);
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth" });
+    }
+    setOpen(false);
+  };
 
   const renderLink = (link, isMobile = false) => {
-    const isActiveRoute =
-      link.type === "route" && location.pathname === link.path;
+    const isRouteType = Array.isArray(link.type)
+      ? link.type.includes("route")
+      : link.type === "route";
+
+    const isScrollType = Array.isArray(link.type)
+      ? link.type.includes("scroll")
+      : link.type === "scroll";
+
+    const isActiveRoute = isRouteType && location.pathname === link.path;
 
     const commonClasses = clsx(
       "hover:text-purple-600 transition duration-200",
       isMobile ? "block py-2" : "",
       isActiveRoute && "text-purple-700 font-bold"
     );
-    
-    if (link.name === "Home") {
-  return (
-    <div
-      key={link.name}
-      onClick={() => {
-        setOpen(false);
-        if (location.pathname !== "/") {
-          navigate("/");
-        } else {
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }
-      }}
-      className={commonClasses + " cursor-pointer"}
-    >
-      {link.name}
-    </div>
-  );
-}
 
-
-    if (link.type === "scroll") {
+    if (isScrollType) {
       return (
-        <div
+        <button
           key={link.name}
           onClick={() => {
             setOpen(false);
             if (location.pathname !== "/") {
-              navigate("/", { state: { scrollTo: link.path } });
+              sessionStorage.setItem("scrollTarget", link.path);
+              navigate("/");
             } else {
-              const el = document.getElementById(link.path);
-              if (el) {
-                el.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
+              handleSmoothScroll(link.path);
             }
           }}
-          className={commonClasses + " cursor-pointer"}
+          className={commonClasses}
         >
           {link.name}
-        </div>
+        </button>
       );
     }
 
@@ -107,48 +91,89 @@ const Navbar = () => {
   return (
     <nav className="sticky top-0 z-50 bg-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        {/* App Name with route */}
         <div
-        className="text-3xl font-bold text-purple-600 cursor-pointer"
-        onClick={() => {
-        setOpen(false);
-        if (location.pathname !== "/") {
-          navigate("/");
-        } else {
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }
-        }}
+          className="text-3xl font-bold text-purple-600 cursor-pointer"
+          onClick={() => {
+            setOpen(false);
+            navigate("/");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
         >
-        M-A
-      </div>
+          M-A
+        </div>
+
+        {/* Desktop Menu */}
         <div className="hidden md:flex gap-8 text-gray-800 font-medium items-center">
-          {navLinks.map((link) => renderLink(link))}
-          {renderLink(authLink)}
-          {user && (
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition"
-            >
-              Logout
-            </button>
+          {!user && navLinks.map((link) => renderLink(link))}
+          {user ? (
+            <>
+              {user.role === "admin" && (
+                <Link
+                  to="/AdminBoard"
+                  className="hover:text-purple-600 transition duration-200"
+                >
+                  👥 User Info
+                </Link>
+              )}
+              <Link
+                to="/dashboard"
+                className="hover:text-purple-600 transition duration-200"
+              >
+                👤 {user.name}
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="text-red-600 hover:text-red-800 transition duration-200"
+              >
+                🚪 Logout
+              </button>
+            </>
+          ) : (
+            renderLink({ name: "Login", path: "/login", type: "route" })
           )}
         </div>
 
+        {/* Mobile Menu Button */}
         <button className="md:hidden" onClick={() => setOpen(!open)}>
           {open ? <X size={28} /> : <Menu size={28} />}
         </button>
       </div>
 
+      {/* Mobile Menu Content */}
       {open && (
         <div className="md:hidden px-4 pb-4 space-y-2">
-          {navLinks.map((link) => renderLink(link, true))}
-          {renderLink(authLink, true)}
-          {user && (
-            <button
-              onClick={handleLogout}
-              className="block w-full text-left bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600"
-            >
-              Logout
-            </button>
+          {!user && navLinks.map((link) => renderLink(link, true))}
+          {user ? (
+            <>
+              {user.role === "admin" && (
+                <Link
+                  to="/AdminBoard"
+                  onClick={() => setOpen(false)}
+                  className="block py-2 hover:text-purple-600"
+                >
+                  👥 User Info
+                </Link>
+              )}
+              <Link
+                to="/dashboard"
+                onClick={() => setOpen(false)}
+                className="block py-2 hover:text-purple-600"
+              >
+                👤 {user.name}
+              </Link>
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  handleLogout();
+                }}
+                className="block w-full text-left py-2 text-red-600 hover:text-red-800"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            renderLink({ name: "Login", path: "/login", type: "route" }, true)
           )}
         </div>
       )}

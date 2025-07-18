@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session
+from flask import Blueprint, Flask, request, jsonify, session
 from flask_cors import CORS
 import cv2
 import numpy as np
@@ -6,17 +6,18 @@ import base64
 import pyodbc
 import os
 import json
+import bcrypt
 from insightface.app import FaceAnalysis
 from dotenv import load_dotenv
 
 import tempfile
-from summarisation.abs_summarisation import summarize_file as abs_summarize
-from summarisation.ext_summarisation import summarize_file as ext_summarize
-from image_captioning import generate_caption
-# from rag import handle_rag_pipeline
-from qaGenerator import handle_qa_pipeline
-from doubt_solving import extract_text_from_image, solve_with_gemini
-from notes import generate_note_from_file
+from apk_modules.summarisation.abs_summarisation import summarize_file as abs_summarize
+from apk_modules.summarisation.ext_summarisation import summarize_file as ext_summarize
+from apk_modules.image_captioning import generate_caption
+# from apk_modules.rag import handle_rag_pipeline
+from apk_modules.qaGenerator import handle_qa_pipeline
+from apk_modules.doubt_solving import extract_text_from_image, solve_with_gemini
+from apk_modules.notes import generate_note_from_file
 
 from werkzeug.utils import secure_filename
 
@@ -52,7 +53,7 @@ BEGIN
         first_name NVARCHAR(255) NOT NULL,
         last_name NVARCHAR(255) NOT NULL,
         email NVARCHAR(255) UNIQUE NOT NULL,
-        password_hash NVARCHAR(255) NOT NULL,
+        password_hash VARBINARY(MAX) NOT NULL,
         image_embedding VARBINARY(MAX) NOT NULL,
         role NVARCHAR(50) DEFAULT 'user'
 ) END
@@ -70,6 +71,23 @@ BEGIN
         ip_address NVARCHAR(100) NULL,
         method NVARCHAR(50) NULL
 ) END
+""")
+conn.commit()
+
+# Create Feedback table if it does not exist
+cursor.execute("""
+    IF NOT EXISTS (
+        SELECT * FROM sysobjects WHERE name = 'Feedback' and xtype='U')
+
+    BEGIN
+        CREATE TABLE Feedback (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            name NVARCHAR(100),
+            email NVARCHAR(100),
+            message NVARCHAR(MAX),
+            created_at DATETIME DEFAULT GETDATE()
+        )
+    END
 """)
 conn.commit()
 
@@ -108,12 +126,17 @@ def register():
         return jsonify({"error": "All fields are required"}), 400
 
     try:
+        # Hash the password
+        hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
+        # Decode image from base64
         image_bytes = base64.b64decode(image_data)
         np_data = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
         if image is None:
             return jsonify({"error": "Image decoding failed."}), 400
 
+        # Extract face and embedding
         faces = face_app.get(image)
         if not faces:
             return jsonify({"error": "No face detected in the image."}), 400
@@ -121,9 +144,10 @@ def register():
         embedding = faces[0].normed_embedding
         embedding_bytes = embedding.tobytes()
 
+        # Save to database
         cursor.execute(
-            "INSERT INTO userAuthentication (first_name, last_name, email, password_hash, image_embedding) VALUES (?, ?, ?, ?, ?)",
-            (first_name, last_name, email, password, embedding_bytes)
+        "INSERT INTO userAuthentication (first_name, last_name, email, password_hash, role, image_embedding) VALUES (?, ?, ?, ?, ?, ?)",
+        (first_name, last_name, email, hashed_password, "user", embedding_bytes)
         )
         conn.commit()
 
@@ -138,17 +162,37 @@ def password_login():
     email = data.get("email")
     password = data.get("password")
 
-    cursor.execute("SELECT id, first_name, last_name, email, role FROM userAuthentication WHERE email = ? AND password_hash = ?", (email, password))
+    # Fetch password hash and other user data
+    cursor.execute(
+        "SELECT id, first_name, last_name, email, password_hash, role, image_embedding FROM userAuthentication WHERE email = ?",
+        (email,)
+    )
     user = cursor.fetchone()
 
     if user:
-        session["user"] = user[3]
-        session["role"] = user[4]
-        log_user_action(user[0], "login", request.remote_addr, "password")
-        return jsonify({
-            "message": f"Welcome {user[1]} {user[2]}!",
-            "name": f"{user[1]} {user[2]}"
-        }), 200
+        db_password_hash = user[4]  
+
+        # Ensure db_password_hash is bytes if stored as BLOB
+        if isinstance(db_password_hash, str):
+            db_password_hash = db_password_hash.encode('utf-8')
+
+        # Verify the password
+        if bcrypt.checkpw(password.encode("utf-8"), db_password_hash):
+            session["user"] = user[3]
+            session["role"] = user[5]
+            log_user_action(user[0], "login", request.remote_addr, "password")
+
+            # Optional: encode image for frontend if needed (convert bytes to base64)
+            image_base64 = None
+            if user[6]:
+                image_base64 = base64.b64encode(user[6]).decode('utf-8')
+
+            return jsonify({
+                "message": f"Welcome {user[1]} {user[2]}!",
+                "name": f"{user[1]} {user[2]}",
+                "role": user[5],
+                "image": image_base64  # Optional
+            }), 200
 
     return jsonify({"error": "Invalid email or password"}), 401
 
@@ -165,10 +209,14 @@ def face_login():
     try:
         live_image_bytes = base64.b64decode(image_data)
         live_embedding = encode_face(live_image_bytes)
+
         if live_embedding is None:
             return jsonify({"error": "No face detected"}), 400
 
-        cursor.execute("SELECT id, first_name, last_name, email, image_embedding, role FROM userAuthentication")
+        cursor.execute("""
+            SELECT id, first_name, last_name, email, image_embedding, role
+            FROM userAuthentication
+        """)
         users = cursor.fetchall()
 
         for user in users:
@@ -176,13 +224,22 @@ def face_login():
             similarity = np.dot(stored_embedding, live_embedding) / (
                 np.linalg.norm(stored_embedding) * np.linalg.norm(live_embedding)
             )
+
             if similarity > 0.75:
-                session["user"] = user[3]
+                session["user"] = user[3]  # email
                 session["role"] = user[5]
+
+                image_base64 = base64.b64encode(user[4]).decode("utf-8") if user[4] else None
+
                 log_user_action(user[0], "login", request.remote_addr, "face")
+
                 return jsonify({
                     "message": f"Welcome {user[1]} {user[2]}!",
-                    "name": f"{user[1]} {user[2]}"
+                    "id": user[0],
+                    "name": f"{user[1]} {user[2]}",
+                    "email": user[3],
+                    "image": image_base64,  
+                    "role": user[5]
                 }), 200
 
         return jsonify({"error": "Face not recognized"}), 401
@@ -190,30 +247,112 @@ def face_login():
     except Exception as e:
         return jsonify({"error": f"Login failed: {str(e)}"}), 500
 
+
 @app.route("/admin/summary", methods=["GET"])
 def admin_summary():
     if session.get("role") != "admin":
         return jsonify({"error": "Access denied: Admins only"}), 403
 
-    cursor.execute("SELECT COUNT(*) FROM userAuthentication")
+    # Count only users with role='user'
+    cursor.execute("SELECT COUNT(*) FROM userAuthentication WHERE role = 'user'")
     user_count = cursor.fetchone()[0]
 
+    # Fetch logs along with role
     cursor.execute("""
-        SELECT TOP 50 L.id, U.first_name, U.last_name, U.email, L.action, L.timestamp, L.method
+        SELECT TOP 50 L.id, U.first_name, U.last_name, U.email, L.action, L.timestamp, L.method, U.role
         FROM UserLogs L
         JOIN userAuthentication U ON L.user_id = U.id
         ORDER BY L.timestamp DESC
     """)
     logs = [{
-        "id": row.id,
-        "name": f"{row.first_name} {row.last_name}",
-        "email": row.email,
-        "action": row.action,
-        "timestamp": row.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-        "method": row.method
+        "id": row[0],
+        "name": f"{row[1]} {row[2]}",
+        "email": row[3],
+        "action": row[4],
+        "timestamp": row[5].strftime('%Y-%m-%d %H:%M:%S'),
+        "method": row[6],
+        "role": row[7]  # ✅ Include role here
     } for row in cursor.fetchall()]
 
     return jsonify({"user_count": user_count, "logs": logs})
+
+
+@app.route("/admin/users", methods=["GET"])
+def get_users():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Access denied"}), 403
+
+    role_filter = request.args.get("role", "user")  # default to user
+
+    if role_filter == "all":
+        cursor.execute("SELECT id, first_name, last_name, email, role FROM userAuthentication")
+    else:
+        cursor.execute("SELECT id, first_name, last_name, email, role FROM userAuthentication WHERE role = ?", (role_filter,))
+
+    users = cursor.fetchall()
+
+    return jsonify([{
+        "id": row[0],
+        "name": f"{row[1]} {row[2]}",
+        "email": row[3],
+        "role": row[4]
+    } for row in users])
+
+@app.route("/admin/delete-user/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    if session.get("role") != "admin":
+        return jsonify({"error": "Access denied"}), 403
+
+    # Ensure user exists and is not admin
+    cursor.execute("SELECT role FROM userAuthentication WHERE id = ?", (user_id,))
+    result = cursor.fetchone()
+
+    if not result:
+        return jsonify({"error": "User not found"}), 404
+    if result[0] == 'admin':
+        return jsonify({"error": "Cannot delete admin users"}), 403
+
+    # Proceed to delete user
+    cursor.execute("DELETE FROM userAuthentication WHERE id = ?", (user_id,))
+    conn.commit()
+
+    return jsonify({"message": "User deleted successfully"}), 200
+
+# Store feedback
+@app.route('/api/feedback', methods=['POST'])
+def store_feedback():
+    data = request.get_json()
+    name = data.get('name')
+    email = data.get('email')
+    message = data.get('message')
+
+    if not name or not email or not message:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    cursor.execute(
+        "INSERT INTO Feedback (name, email, message) VALUES (?, ?, ?)",
+        (name, email, message)
+    )
+    conn.commit()
+    return jsonify({'message': 'Feedback submitted successfully'}), 201
+
+# Retrieve all feedback
+@app.route('/api/feedback', methods=['GET'])
+def get_feedback():
+    cursor.execute("SELECT id, name, email, message, created_at FROM Feedback ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    feedbacks = [
+        {
+            'id': row.id,
+            'name': row.name,
+            'email': row.email,
+            'message': row.message,
+            'created_at': row.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        for row in rows
+    ]
+    return jsonify(feedbacks)
+
 
 @app.route('/abstractive', methods=['POST'])
 def abstractive_summarize_api():

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 
 const ImageCaptioning = () => {
   const [image, setImage] = useState(null);
@@ -35,54 +37,60 @@ const ImageCaptioning = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-white flex items-center justify-center p-6">
-      <motion.div
-        className="bg-white shadow-2xl rounded-2xl p-8 max-w-lg w-full text-center"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h1 className="text-4xl font-bold text-indigo-700 mb-6">🖼️ Image Captioning</h1>
+    <div className="flex flex-col min-h-screen">
+      <Navbar />
 
-        <input
-          type="file"
-          accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
-          onChange={handleFileChange}
-          className="mb-4 w-full file:px-4 file:py-2 file:bg-indigo-600 file:text-white file:rounded-lg file:border-none file:cursor-pointer file:transition hover:file:bg-indigo-700"
-        />
-
-        {previewUrl && (
-          <motion.img
-            src={previewUrl}
-            alt="Preview"
-            className="w-64 h-64 object-contain mx-auto border-4 border-indigo-200 rounded-lg mb-6 shadow-md"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          />
-        )}
-
-        <motion.button
-          onClick={handleUpload}
-          disabled={loading || !image}
-          className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-full shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          whileTap={{ scale: 0.95 }}
+      <main className="flex-grow bg-gradient-to-br from-indigo-100 to-white flex items-center justify-center p-6">
+        <motion.div
+          className="bg-white shadow-2xl rounded-2xl p-8 max-w-lg w-full text-center"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
-          {loading ? "🔄 Generating Caption..." : "Generate Caption"}
-        </motion.button>
+          <h1 className="text-4xl font-bold text-indigo-700 mb-6">🖼️ Image Captioning</h1>
 
-        {caption && (
-          <motion.div
-            className="mt-6 bg-indigo-50 p-4 rounded-xl shadow-inner"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+          <input
+            type="file"
+            accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
+            onChange={handleFileChange}
+            className="mb-4 w-full file:px-4 file:py-2 file:bg-indigo-600 file:text-white file:rounded-lg file:border-none file:cursor-pointer file:transition hover:file:bg-indigo-700"
+          />
+
+          {previewUrl && (
+            <motion.img
+              src={previewUrl}
+              alt="Preview"
+              className="w-64 h-64 object-contain mx-auto border-4 border-indigo-200 rounded-lg mb-6 shadow-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            />
+          )}
+
+          <motion.button
+            onClick={handleUpload}
+            disabled={loading || !image}
+            className="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-full shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            whileTap={{ scale: 0.95 }}
           >
-            <p className="text-indigo-600 font-medium text-lg mb-1">Caption:</p>
-            <p className="text-gray-800 italic">"{caption}"</p>
-          </motion.div>
-        )}
-      </motion.div>
+            {loading ? "🔄 Generating Caption..." : "Generate Caption"}
+          </motion.button>
+
+          {caption && (
+            <motion.div
+              className="mt-6 bg-indigo-50 p-4 rounded-xl shadow-inner"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
+              <p className="text-indigo-600 font-medium text-lg mb-1">Caption:</p>
+              <p className="text-gray-800 italic">"{caption}"</p>
+            </motion.div>
+          )}
+        </motion.div>
+      </main>
+
+      <Footer />
     </div>
   );
 };
