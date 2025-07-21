@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useNavigate } from "react-router-dom";
 import { Sparkles, FileText } from "lucide-react";
+import { motion } from "framer-motion";
 
 const SummarizationChoice = () => {
   const navigate = useNavigate();
@@ -29,34 +30,64 @@ const SummarizationChoice = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-200 flex flex-col">
       <Navbar />
+
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
-        <h1 className="text-4xl font-bold text-gray-800 mb-10 text-center">
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-4xl font-extrabold text-gray-800 mb-12 text-center drop-shadow-md"
+        >
           Choose Your Summarization Method
-        </h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full">
+        </motion.h1>
+
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-5xl w-full"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: {
+              transition: {
+                staggerChildren: 0.2,
+              },
+            },
+          }}
+        >
           {cards.map((card, idx) => (
-            <div
+            <motion.div
               key={idx}
               onClick={() => navigate(card.route)}
-              className={`cursor-pointer rounded-2xl shadow-xl transition-transform transform hover:scale-105 group overflow-hidden`}
+              className={`cursor-pointer rounded-2xl shadow-xl group overflow-hidden hover:shadow-2xl transition duration-300 transform hover:-translate-y-1`}
+              whileHover={{ scale: 1.05 }}
+              variants={{
+                hidden: { opacity: 0, y: 30 },
+                visible: { opacity: 1, y: 0 },
+              }}
             >
               <div className={`p-1 ${card.gradient}`}>
                 <div className="bg-white rounded-xl p-6 h-full flex items-start gap-4">
-                  <div className="p-3 bg-gray-100 rounded-full shadow-md">
+                  <motion.div
+                    className="p-3 bg-gray-100 rounded-full shadow-md"
+                    whileHover={{ rotate: 10 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
                     {card.icon}
-                  </div>
+                  </motion.div>
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                    <h2 className="text-xl font-bold text-gray-800 mb-2 group-hover:text-gray-900 transition">
                       {card.title}
                     </h2>
-                    <p className="text-gray-600 text-sm">{card.description}</p>
+                    <p className="text-gray-600 text-sm leading-relaxed">
+                      {card.description}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </main>
+
       <Footer />
     </div>
   );

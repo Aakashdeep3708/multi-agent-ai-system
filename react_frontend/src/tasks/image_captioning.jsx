@@ -36,6 +36,12 @@ const ImageCaptioning = () => {
     setLoading(false);
   };
 
+  const handleReset = () => {
+    setImage(null);
+    setPreviewUrl(null);
+    setCaption("");
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -65,6 +71,17 @@ const ImageCaptioning = () => {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             />
+          )}
+
+          {/* ✅ Reset Button - shown first */}
+          {image && (
+            <motion.button
+              onClick={handleReset}
+              className="mb-3 bg-red-100 text-red-600 font-medium px-5 py-2 rounded-full shadow hover:bg-red-200 transition-all"
+              whileTap={{ scale: 0.95 }}
+            >
+              🔄 Reset
+            </motion.button>
           )}
 
           <motion.button

@@ -225,7 +225,7 @@ def face_login():
                 np.linalg.norm(stored_embedding) * np.linalg.norm(live_embedding)
             )
 
-            if similarity > 0.75:
+            if similarity > 0.60:
                 session["user"] = user[3]  # email
                 session["role"] = user[5]
 
