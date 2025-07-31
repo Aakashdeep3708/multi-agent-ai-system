@@ -104,7 +104,7 @@ Each module is handled by a specific agent (e.g., Summarizer Agent, Captioning A
 
 ## Screenshots
 
-![Dashboard](screenshots/Screenshot(15).png)
+![Dashboard](screenshots/Dashboard.png)
 
 ## Setup Instructions
 ## Prerequisites
