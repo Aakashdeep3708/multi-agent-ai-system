@@ -48,25 +48,51 @@ def chunk_text(text, max_words=4000, overlap=100):
 
 def generate_qa(text_chunk, num_questions):
     prompt = f"""
-Generate {num_questions} question-answer pairs from the following text:
+You are an intelligent academic assistant.
+
+Your task is to generate clear, well-structured, and meaningful question-answer pairs from the provided academic or textbook content.
+
+Instructions:
+
+1. Carefully analyze the given content to understand its structure, main ideas, and important details.
+
+2. Generate a total of {num_questions * 3} question-answer pairs, equally divided into three difficulty levels:
+   - Basic: Focus on factual recall, terminology, and simple definitions.
+   - Intermediate: Test comprehension, relationships between concepts, or applications.
+   - Advanced: Require analysis, inference, reasoning, or multi-step understanding.
+
+Guidelines:
+
+- Base all questions and answers solely on the information provided in the content.
+- Do **not** include any difficulty level tags (like “Easy”, “Medium”, “Hard”) in the output.
+- Avoid unnecessary phrases like “According to the text.”
+- Ensure questions are diverse, relevant, and appropriate to their intended difficulty.
+- Keep answers concise, accurate, and informative.
+- Maintain a clean format with clearly numbered Q&A pairs.
+
+Format the output exactly as shown below:
+
+Q1:  
+A1:  
+Q2:  
+A2:  
+...
+
+Content:
 
 \"\"\"{text_chunk}\"\"\"
 
-Only use the information in the text. Format each pair clearly:
-Q1: <your question here>
-A1: <your answer here>
-Q2: ...
-A2: ...
-(Continue like this up to Q{num_questions})
+Now generate exactly {num_questions} question-answer pairs for each difficulty level (basic, intermediate, advanced), for a total of {num_questions * 3} Q&A pairs.
+
 """
     try:
         response = model.generate_content(prompt)
         output = response.text.strip() if response and response.text else ""
 
-        print("Gemini Output:\n", output)  # DEBUG LOG
+        # print("Gemini Output:\n", output)  # DEBUG LOG
 
         # Extract Q&A pairs
-        qa_pattern = re.findall(r"Q\d+:\s*(.*?)\s*A\d+:\s*(.*?)(?=\nQ\d+:|\Z)", output, re.DOTALL)
+        qa_pattern = re.findall(r"Q\d+:\s*(.*?)\s*A\d+:\s*(.*?)(?:\*\*?.*?Level\*\*?|🔹 Easy Level|🔸 Medium Level|🔴 Hard Level)?(?=\nQ\d+:|\Z)", output, re.DOTALL)
         if qa_pattern:
             return [{"question": q.strip(), "answer": a.strip()} for q, a in qa_pattern]
         else:
@@ -93,7 +119,7 @@ def handle_qa_pipeline(file, num_questions):
         qa_pairs.extend(raw_pairs)
 
     # Trim extra if Gemini generated more
-    qa_pairs = qa_pairs[:num_questions]
+    qa_pairs = qa_pairs[:num_questions * 3]
 
     return {"qa_pairs": qa_pairs}, 200
 

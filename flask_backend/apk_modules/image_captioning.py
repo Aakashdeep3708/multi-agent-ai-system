@@ -25,17 +25,18 @@ def generate_caption(image_file):
     # Step 2: Gemini - Use extracted text to generate caption
     prompt = f"""
 You are an advanced image captioning AI.
-
 Instructions:
-- If the image contains readable text, include that text meaningfully in the caption.
-- If no text is found, describe the visual content of the image in detail.
-
+Analyze the uploaded image, which may be in JPG or other common formats.
+If the image contains any readable or OCR-extracted text, integrate that text meaningfully into the caption.
+If no text is detected, describe the visual content of the image in clear, accurate language.
+Caption Length Guidelines (based on image type):
+If it is a normal image (e.g., scenery, objects, people), limit the caption to around 20 words.
+If it resembles a journalistic or news-style image, limit the caption to around 28 words.
+If it is a scientific, academic, or technical image, allow 50 words or more, ensuring clarity and detail.
 Extracted Text (if any):
 {extracted_text}
-
-Now generate a meaningful and context-aware caption:
+Now generate a context-aware, natural-sounding caption that reflects the content, purpose, and style of the image. Adjust length accordingly.
 """
-
 
     model = genai.GenerativeModel("models/gemini-1.5-flash")
     response = model.generate_content(prompt)

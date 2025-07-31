@@ -51,6 +51,7 @@ const Notes = () => {
     }
   };
 
+  // ✅ Updated to support multi-page note export
   const handleDownloadPDF = () => {
     const doc = new jsPDF({
       orientation: "portrait",
@@ -58,10 +59,25 @@ const Notes = () => {
       format: "a4",
     });
 
-    const lines = doc.splitTextToSize(notes, 500);
+    const margin = 40;
+    const verticalOffset = 60;
+    const pageHeight = doc.internal.pageSize.height;
+    const maxLineWidth = doc.internal.pageSize.width - margin * 2;
+
+    const lines = doc.splitTextToSize(notes, maxLineWidth);
+    let y = verticalOffset;
+
     doc.setFont("Helvetica");
     doc.setFontSize(12);
-    doc.text(lines, 40, 60);
+
+    lines.forEach((line) => {
+      if (y > pageHeight - margin) {
+        doc.addPage();
+        y = verticalOffset;
+      }
+      doc.text(line, margin, y);
+      y += 20; // line spacing
+    });
 
     const fileName = `${file.name.split(".")[0]}_notes.pdf`;
     doc.save(fileName);
@@ -85,7 +101,7 @@ const Notes = () => {
           className="w-full max-w-3xl bg-white shadow-2xl rounded-3xl p-8 space-y-6"
         >
           <h2 className="text-3xl font-bold text-center text-blue-800">
-            Upload Document to Generate Notes
+            Notes Generator
           </h2>
 
           <motion.div
@@ -102,16 +118,6 @@ const Notes = () => {
                          file:text-sm file:font-semibold file:bg-blue-100 
                          file:text-blue-800 hover:file:bg-blue-200 transition-all"
             />
-            {/* {file && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex items-center text-sm text-gray-700 bg-gray-100 px-3 py-2 rounded-md shadow-sm"
-              >
-                <FileText className="w-4 h-4 mr-2 text-blue-600" />
-                {file.name}
-              </motion.div>
-            )} */}
             {error && <p className="text-sm text-red-500">{error}</p>}
           </motion.div>
 

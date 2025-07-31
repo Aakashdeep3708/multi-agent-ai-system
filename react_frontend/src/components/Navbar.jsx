@@ -100,7 +100,7 @@ const Navbar = () => {
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
         >
-          M-A
+          SmartDesk
         </div>
 
         {/* Desktop Menu */}

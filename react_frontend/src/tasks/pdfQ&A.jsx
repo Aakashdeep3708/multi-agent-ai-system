@@ -59,12 +59,12 @@ const RAGPipeline = () => {
           className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-10"
         >
           <h1 className="text-3xl font-bold text-center text-blue-800 mb-8">
-            🧠 RAG Document Q&A
+            🧠 Document Q&A
           </h1>
 
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Upload Document (.pdf, .docx, .txt)
+              Upload Document
             </label>
             <input
               id="fileInput"

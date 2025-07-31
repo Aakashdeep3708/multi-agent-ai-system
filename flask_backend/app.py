@@ -14,7 +14,7 @@ import tempfile
 from apk_modules.summarisation.abs_summarisation import summarize_file as abs_summarize
 from apk_modules.summarisation.ext_summarisation import summarize_file as ext_summarize
 from apk_modules.image_captioning import generate_caption
-# from apk_modules.rag import handle_rag_pipeline
+from apk_modules.rag import handle_rag_pipeline
 from apk_modules.qaGenerator import handle_qa_pipeline
 from apk_modules.doubt_solving import extract_text_from_image, solve_with_gemini
 from apk_modules.notes import generate_note_from_file
@@ -406,17 +406,17 @@ def caption_image():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# @app.route('/rag', methods=['POST'])
-# def rag_endpoint():
-#         try:
-#             file = request.files.get('file')
-#             question = request.form.get('question')
-#             if not file or not question:
-#                 return jsonify({"error": "Both file and question are required."}), 400
-#             answer = handle_rag_pipeline(file, question)
-#             return jsonify({"answer": answer})
-#         except Exception as e:
-#             return jsonify({"error": str(e)}), 500  
+@app.route('/rag', methods=['POST'])
+def rag_endpoint():
+        try:
+            file = request.files.get('file')
+            question = request.form.get('question')
+            if not file or not question:
+                return jsonify({"error": "Both file and question are required."}), 400
+            answer = handle_rag_pipeline(file, question)
+            return jsonify({"answer": answer})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500  
 
 @app.route("/generate-qa", methods=["POST"])
 def generate_qa_route():

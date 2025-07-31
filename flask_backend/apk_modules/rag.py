@@ -83,7 +83,26 @@ def search_chunks(collection, query, top_k=3):
 
 def generate_answer(chunks, question):
     context = "\n\n".join(chunks)
-    prompt = f"""Use the context below to answer the question.\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:"""
+    prompt = f"""You are a highly knowledgeable assistant.
+                Your task is to carefully analyze the given context and generate the most accurate and relevant answer to the question based solely on the provided information.
+
+                Instructions:
+
+                Read and understand the context thoroughly.
+
+                Identify key facts, concepts, and relationships in the text.
+
+                Use only the information present in the context — do not assume or add anything external.
+
+                Provide a clear, concise, and well-reasoned answer to the question.
+
+                Context:
+                {context}  
+                Question:
+                {question}
+
+                Answer:"""
+    
     model = genai.GenerativeModel("models/gemini-2.0-flash-lite-001")
     response = model.generate_content(prompt)
     return response.text

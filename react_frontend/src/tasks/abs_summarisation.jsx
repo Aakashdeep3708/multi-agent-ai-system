@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { UploadCloud, Loader2, Download, XCircle } from "lucide-react";
+import { UploadCloud, Loader2, XCircle, FileText } from "lucide-react";
 import axios from "axios";
 import { motion } from "framer-motion";
+import { jsPDF } from "jspdf";
 
 const AbsSummarizationDashboard = () => {
   const [file, setFile] = useState(null);
@@ -36,19 +37,19 @@ const AbsSummarizationDashboard = () => {
     }
   };
 
-  const handleDownload = () => {
-    const element = document.createElement("a");
-    const fileBlob = new Blob([response], { type: "text/plain" });
-    element.href = URL.createObjectURL(fileBlob);
-    element.download = "summary.txt";
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
   const handleReset = () => {
     setFile(null);
     setResponse("");
+  };
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+    const lines = doc.splitTextToSize(response, 180); // wrap long text
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.text("Abstractive Summary", 10, 10);
+    doc.text(lines, 10, 20);
+    doc.save("summary.pdf");
   };
 
   return (
@@ -81,6 +82,15 @@ const AbsSummarizationDashboard = () => {
 
             <div className="flex gap-4">
               <motion.button
+                onClick={handleReset}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 bg-red-100 text-red-600 px-5 py-2 rounded-full shadow hover:bg-red-200 transition"
+              >
+                <XCircle />
+                Reset
+              </motion.button>
+
+              <motion.button
                 onClick={handleSubmit}
                 disabled={loading || !file}
                 whileTap={{ scale: 0.95 }}
@@ -98,44 +108,37 @@ const AbsSummarizationDashboard = () => {
                   </>
                 )}
               </motion.button>
-
-              <motion.button
-                onClick={handleReset}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 bg-red-100 text-red-600 px-5 py-2 rounded-full shadow hover:bg-red-200 transition"
-              >
-                <XCircle />
-                Reset
-              </motion.button>
             </div>
           </div>
 
           {response && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="bg-gray-50 border border-gray-200 rounded-xl p-5 max-h-96 overflow-y-auto shadow-inner"
-            >
-              <h2 className="font-semibold text-gray-700 mb-3 text-lg">📄 Summary:</h2>
-              <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
-                {response}
-              </p>
+            <>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="bg-gray-50 border border-gray-200 rounded-xl p-5 max-h-96 overflow-y-auto shadow-inner"
+              >
+                <h2 className="font-semibold text-gray-700 mb-3 text-lg">📄 Summary:</h2>
+                <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                  {response}
+                </p>
 
-              <div className="flex justify-between items-center mt-5 text-sm text-gray-600">
-                <span className="italic">
+                <div className="text-sm text-gray-600 mt-4 italic">
                   Word Count: {response.trim().split(/\s+/).length}
-                </span>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleDownload}
-                  className="flex items-center gap-1 text-blue-600 hover:underline"
-                >
-                  <Download size={16} />
-                  Download Summary
-                </motion.button>
-              </div>
-            </motion.div>
+                </div>
+              </motion.div>
+
+              {/* New Download Button BELOW the content */}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleDownloadPDF}
+                className="mt-5 flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-full shadow hover:bg-green-700 transition"
+              >
+                <FileText size={18} />
+                Download Summary as PDF
+              </motion.button>
+            </>
           )}
         </motion.div>
       </main>

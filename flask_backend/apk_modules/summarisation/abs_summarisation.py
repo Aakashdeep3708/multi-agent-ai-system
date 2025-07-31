@@ -39,7 +39,26 @@ def chunk_text(text, max_tokens=3000):
     return chunks
 
 def summarize_with_gemini(text):
-    prompt = f"Summarize the following content in clear language:\n\n{text}"
+    prompt = f"""You are an intelligent summarization assistant.
+Your task is to read the following content and generate a clear, concise, and well-structured summary.
+
+Instructions:
+
+First, identify the type of content (e.g., academic paper, news article, technical document, general prose).
+
+Then generate a summary based on the type:
+
+📘 Textbook/Academic Notes → Highlight key definitions, concepts, and core ideas.
+
+📄 Research Paper → Summarize the abstract, objectives, methods, findings, and conclusions.
+
+📰 News Article/Journal → Focus on the who, what, when, where, why, and outcome.
+
+📊 Report/Analysis → Capture the main insights, trends, conclusions, and recommendations.
+
+🧾 General/Other Content → Provide a brief, easy-to-understand summary of the main ideas.
+\n\n{text}
+Now, generate an appropriate abstractive summary based on the file type and content."""
     response = model.generate_content(prompt)
     return response.text.strip()
 

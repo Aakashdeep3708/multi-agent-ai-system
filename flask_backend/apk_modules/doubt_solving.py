@@ -28,6 +28,6 @@ def extract_text_from_image(image_file):
 
 
 def solve_with_gemini(text):
-    prompt = f"Please solve the following question or explain this doubt:\n\n{text}"
+    prompt = f"Interpret the following question (from text or OCR image), and provide a complete solution with explanation. If it’s a doubt, explain the underlying concept in a clear, subject-appropriate manner:\n\n{text}"
     response = model.generate_content(prompt)
     return response.text.strip()

@@ -13,7 +13,6 @@ load_dotenv()
 genai.configure(api_key=os.getenv("API_KEY"))
 nltk.download("punkt")
 
-
 # ---------------- TEXT EXTRACTION ----------------
 
 def extract_text(file_storage):
@@ -84,9 +83,30 @@ def chunk_text(text, chunk_size=4000, overlap=150):
 def generate_notes(chunk):
     model = genai.GenerativeModel("models/gemini-1.5-flash")
     prompt = (
-        "Generate concise, well-structured study notes from the following academic or textbook content:\n\n"
+        """You are a highly knowledgeable academic assistant.
+        Your task is to generate concise, structured, and exam-focused study notes from the following academic or textbook content.
+
+        Instructions:
+
+        Carefully read and understand the provided text.
+
+        Identify and structure the notes topic-wise or section-wise.
+
+        For each topic, include:
+
+        ✅ A brief summary in 1–3 sentences
+
+        ✅ Definitions of important terms
+
+        ✅ Key concepts explained clearly
+
+        ✅ Bullet points for facts, principles, and examples
+
+        ✅ Headings and subheadings for clarity:\n\n"""
+
         f"{chunk}\n\n"
-        "Notes should include bullet points, definitions, summaries, and important concepts."
+
+        "Now generate clean, organized, and easy-to-revise study notes based on the above content. Use academic tone and clarity."
     )
 
     try:
