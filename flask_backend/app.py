@@ -11,13 +11,13 @@ from insightface.app import FaceAnalysis
 from dotenv import load_dotenv
 
 import tempfile
-from apk_modules.summarisation.abs_summarisation import summarize_file as abs_summarize
-from apk_modules.summarisation.ext_summarisation import summarize_file as ext_summarize
-from apk_modules.image_captioning import generate_caption
-from apk_modules.rag import handle_rag_pipeline
-from apk_modules.qaGenerator import handle_qa_pipeline
-from apk_modules.doubt_solving import extract_text_from_image, solve_with_gemini
-from apk_modules.notes import generate_note_from_file
+from app_modules.summarisation.abs_summarisation import summarize_file as abs_summarize
+from app_modules.summarisation.ext_summarisation import summarize_file as ext_summarize
+from app_modules.image_captioning import generate_caption
+from app_modules.rag import handle_rag_pipeline
+from app_modules.qaGenerator import handle_qa_pipeline
+from app_modules.doubt_solving import extract_text_from_image, solve_with_gemini
+from app_modules.notes import generate_note_from_file
 
 from werkzeug.utils import secure_filename
 

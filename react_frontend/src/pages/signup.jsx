@@ -158,7 +158,7 @@ export default function Register() {
           </div>
 
           <div className="mt-6" data-aos="fade-left">
-            <label className="block text-sm font-semibold mb-2 text-gray-700">Profile Image</label>
+            <label className="block text-sm font-semibold mb-2 text-gray-700"></label>
             <div className="flex gap-4 flex-col sm:flex-row mb-3">
               <button
                 onClick={handleFileUpload}

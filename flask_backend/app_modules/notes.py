@@ -94,7 +94,7 @@ def generate_notes(chunk):
 
         For each topic, include:
 
-        ✅ A brief summary in 1–3 sentences
+        ✅ A brief summary in 3-5 sentences
 
         ✅ Definitions of important terms
 
