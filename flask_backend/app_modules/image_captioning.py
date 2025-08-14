@@ -1,28 +1,26 @@
 import easyocr
 from PIL import Image
+import numpy as np
 import io
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load environment variables (you must have .env with GEMINI_API_KEY)
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+api_key = os.getenv("API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY not found in environment variables")
+genai.configure(api_key=api_key)
 
-# Initialize OCR reader
 reader = easyocr.Reader(['en'], gpu=False)
 
 def generate_caption(image_file):
-    # Step 1: OCR - Extract any visible text
     image = Image.open(image_file).convert("RGB")
-    image_bytes = io.BytesIO()
-    image.save(image_bytes, format="PNG")
-    image_bytes.seek(0)
+    image_np = np.array(image)  # For EasyOCR
+    
+    ocr_results = reader.readtext(image_np)
+    extracted_text = " ".join([res[1] for res in ocr_results if len(res) > 1]) or "No visible text detected"
 
-    ocr_results = reader.readtext(image_bytes.getvalue())
-    extracted_text = " ".join([text for _, text, _ in ocr_results]) or "No visible text detected"
-
-    # Step 2: Gemini - Use extracted text to generate caption
     prompt = f"""
 You are an advanced image captioning AI.
 Instructions:
@@ -38,7 +36,7 @@ Extracted Text (if any):
 Now generate a context-aware, natural-sounding caption that reflects the content, purpose, and style of the image. Adjust length accordingly.
 """
 
-    model = genai.GenerativeModel("models/gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt)
 
     return response.text.strip()
