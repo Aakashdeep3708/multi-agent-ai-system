@@ -10,6 +10,10 @@ import bcrypt
 from insightface.app import FaceAnalysis
 from dotenv import load_dotenv
 
+import random 
+import time
+from flask_mail import Mail, Message
+
 import tempfile
 from app_modules.summarisation.abs_summarisation import summarize_file as abs_summarize
 from app_modules.summarisation.ext_summarisation import summarize_file as ext_summarize
@@ -112,49 +116,122 @@ def encode_face(image_bytes):
         return np.array(faces[0].normed_embedding, dtype=np.float32)
     except:
         return None
+    
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")  # Your email
+app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")  # App password
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv("MAIL_SENDER")
+
+mail = Mail(app)
+
+otp_storage = {}
+verified_emails = set()
+
+@app.route('/send_verification_code', methods=['POST'])
+def send_verification_code():
+    data = request.json
+    email = data.get("email")
+    
+    if not email:
+        return jsonify({"success": False, "message": "Email required"}), 400
+
+    # Generate 6-digit OTP
+    otp = str(random.randint(100000, 999999))
+    otp_storage[email] = {"otp": otp, "expires": time.time() + 300}  # 5 min expiry
+
+    try:
+        msg = Message("Your Verification Code", recipients=[email])
+        msg.body = f"Your verification code is {otp}. It will expire in 5 minutes."
+        mail.send(msg)
+        return jsonify({"success": True, "message": "Verification code sent"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Failed to send email: {str(e)}"}), 500
+
+@app.route('/verify_code', methods=['POST'])
+def verify_code():
+    data = request.json
+    email = data.get("email")
+    entered_otp = data.get("code")
+
+    if email not in otp_storage:
+        return jsonify({"success": False, "message": "No OTP found. Please request a new one."}), 400
+    
+    stored_data = otp_storage[email]
+    
+    if time.time() > stored_data["expires"]:
+        del otp_storage[email]
+        return jsonify({"success": False, "message": "OTP expired"}), 400
+    
+    if entered_otp == stored_data["otp"]:
+        del otp_storage[email]
+        verified_emails.add(email)  # Mark email as verified
+        return jsonify({"success": True, "message": "Email verified successfully"})
+    else:
+        return jsonify({"success": False, "message": "Invalid OTP"}), 400
 
 @app.route("/register", methods=["POST"])
 def register():
-    data = request.json
-    first_name = data.get("first_name")
-    last_name = data.get("last_name")
-    email = data.get("email")
-    password = data.get("password")
-    image_data = data.get("image")
-
-    if not all([first_name, last_name, email, password, image_data]):
-        return jsonify({"error": "All fields are required"}), 400
-
     try:
-        # Hash the password
+        data = request.json
+        first_name = data.get("first_name")
+        last_name = data.get("last_name")
+        email = data.get("email")
+        password = data.get("password")
+        image_data = data.get("image")
+
+        if not all([first_name, last_name, email, password, image_data]):
+            return jsonify({"error": "All fields are required"}), 400
+
+        # Check if email was verified
+        if email not in verified_emails:
+            return jsonify({"error": "Email not verified"}), 400
+
+        # Check if user already exists
+        cursor.execute("SELECT id FROM userAuthentication WHERE email = ?", (email,))
+        if cursor.fetchone():
+            return jsonify({"error": "Email already registered"}), 400
+
+        # Hash password
         hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-        # Decode image from base64
-        image_bytes = base64.b64decode(image_data)
-        np_data = np.frombuffer(image_bytes, np.uint8)
-        image = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
-        if image is None:
-            return jsonify({"error": "Image decoding failed."}), 400
+        # Decode image
+        try:
+            image_bytes = base64.b64decode(image_data)
+            np_data = np.frombuffer(image_bytes, np.uint8)
+            image = cv2.imdecode(np_data, cv2.IMREAD_COLOR)
+        except Exception:
+            return jsonify({"error": "Invalid image data"}), 400
 
-        # Extract face and embedding
+        if image is None:
+            return jsonify({"error": "Image decoding failed"}), 400
+
+        # Extract face embedding
         faces = face_app.get(image)
         if not faces:
-            return jsonify({"error": "No face detected in the image."}), 400
+            return jsonify({"error": "No face detected in the image"}), 400
 
         embedding = faces[0].normed_embedding
         embedding_bytes = embedding.tobytes()
 
-        # Save to database
+        # Save to DB
         cursor.execute(
-        "INSERT INTO userAuthentication (first_name, last_name, email, password_hash, role, image_embedding) VALUES (?, ?, ?, ?, ?, ?)",
-        (first_name, last_name, email, hashed_password, "user", embedding_bytes)
+            """INSERT INTO userAuthentication 
+               (first_name, last_name, email, password_hash, role, image_embedding) 
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (first_name, last_name, email, hashed_password, "user", embedding_bytes)
         )
         conn.commit()
+
+        verified_emails.discard(email)  # Remove from verified list after use
 
         return jsonify({"message": "Registration successful!"}), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/password-login", methods=["POST"])
 def password_login():

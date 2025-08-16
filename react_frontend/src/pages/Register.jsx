@@ -6,6 +6,7 @@ import "aos/dist/aos.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Player } from "@lottiefiles/react-lottie-player";
+import { Eye, EyeOff } from "lucide-react";
 
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -16,9 +17,17 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [image, setImage] = useState(null);
   const [imageName, setImageName] = useState("");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
+
+  // Email verification states
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+
   const navigate = useNavigate();
   const webcamRef = useRef(null);
 
@@ -26,9 +35,63 @@ export default function Register() {
     AOS.init({ duration: 800, once: true });
   }, []);
 
+  const sendVerificationCode = async () => {
+    if (!email) {
+      toast.error("Please enter your email first!");
+      return;
+    }
+    try {
+      const res = await fetch("http://127.0.0.1:5000/send_verification_code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Verification code sent to your email!");
+        setOtpSent(true);
+      } else {
+        toast.error(data.error || "Failed to send code");
+      }
+    } catch (error) {
+      toast.error("Error sending verification code");
+    }
+  };
+
+  const verifyEmailCode = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:5000/verify_code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: verificationCode }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Email verified successfully!");
+        setEmailVerified(true);
+      } else {
+        toast.error(data.error || "Invalid code");
+      }
+    } catch (error) {
+      toast.error("Error verifying code");
+    }
+  };
+
   const handleRegister = async () => {
+    if (!emailVerified) {
+      toast.error("Please verify your email before registering.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast.error("Passwords do not match!");
+      return;
+    }
+
+    const passwordPattern =
+      /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+    if (!passwordPattern.test(password)) {
+      toast.error("Make a strong password");
       return;
     }
 
@@ -102,7 +165,7 @@ export default function Register() {
         <Player
           autoplay
           loop
-          src="https://lottie.host/ccfbbfc3-b117-4e0b-b4ec-008382e37412/yNwZZEafRx.json" // Sample abstract animation
+          src="https://lottie.host/ccfbbfc3-b117-4e0b-b4ec-008382e37412/yNwZZEafRx.json"
           style={{ height: "300px", width: "300px" }}
         />
       </div>
@@ -134,31 +197,83 @@ export default function Register() {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
             />
-            <input
-              type="email"
-              placeholder="Email Address"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Confirm Password"
-              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
+
+            {/* Email + Send Code */}
+            <div className="flex gap-2">
+              <input
+                type="email"
+                placeholder="Email Address"
+                className="flex-1 px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+              <button
+                onClick={sendVerificationCode}
+                className="bg-indigo-500 text-white px-4 py-2 rounded-xl hover:bg-indigo-600"
+              >
+                Send Code
+              </button>
+            </div>
+
+            {/* OTP input */}
+            {otpSent && (
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  placeholder="Enter code"
+                  className="flex-1 px-4 py-2 rounded-xl border border-gray-300"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                />
+                <button
+                  onClick={verifyEmailCode}
+                  className="bg-green-500 text-white px-4 py-2 rounded-xl hover:bg-green-600"
+                >
+                  Verify
+                </button>
+              </div>
+            )}
+
+          <div className="space-y-4">
+            {/* Password Field */}
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+              >
+                {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+              </button>
+            </div>
+
+            {/* Confirm Password Field */}
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Confirm Password"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+              >
+                {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
+              </button>
+            </div>
+          </div>
           </div>
 
           <div className="mt-6" data-aos="fade-left">
-            <label className="block text-sm font-semibold mb-2 text-gray-700"></label>
             <div className="flex gap-4 flex-col sm:flex-row mb-3">
               <button
                 onClick={handleFileUpload}
@@ -194,7 +309,9 @@ export default function Register() {
                     facingMode: "user",
                   }}
                   className="rounded-xl w-full border border-gray-300 shadow-md"
-                  onUserMediaError={() => toast.error("Please allow camera access!")}
+                  onUserMediaError={() =>
+                    toast.error("Please allow camera access!")
+                  }
                 />
                 <button
                   onClick={captureImage}
