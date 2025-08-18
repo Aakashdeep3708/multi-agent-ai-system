@@ -23,75 +23,79 @@ export default function Register() {
   const [imageName, setImageName] = useState("");
   const [isWebcamActive, setIsWebcamActive] = useState(false);
 
-  // Email verification states
-  const [emailVerified, setEmailVerified] = useState(false);
+  // OTP verification
+  const [showOtpModal, setShowOtpModal] = useState(false);
   const [verificationCode, setVerificationCode] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const navigate = useNavigate();
   const webcamRef = useRef(null);
+
+  // Resend OTP function
+  const handleResendOTP = async () => {
+  if (resendCooldown > 0) return; // block spamming
+
+  setResendLoading(true);
+  try {
+    const response = await fetch("http://127.0.0.1:5000/send_otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        email,
+        first_name: firstName,
+      }),
+    });
+
+    const data = await response.json();
+    if (response.ok) {
+      toast.success("OTP resent to your email!");
+      setResendCooldown(30); // start 30s cooldown
+    } else {
+      toast.error(data.error || "Failed to resend OTP");
+    }
+  } catch (error) {
+    toast.error("Server error, try again.");
+  }
+  setResendLoading(false);
+};
+
+// Cooldown timer effect
+useEffect(() => {
+  if (resendCooldown > 0) {
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }
+}, [resendCooldown]);
 
   useEffect(() => {
     AOS.init({ duration: 800, once: true });
   }, []);
 
-  const sendVerificationCode = async () => {
-    if (!email) {
-      toast.error("Please enter your email first!");
-      return;
-    }
-    try {
-      const res = await fetch("http://127.0.0.1:5000/send_verification_code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success("Verification code sent to your email!");
-        setOtpSent(true);
-      } else {
-        toast.error(data.error || "Failed to send code");
-      }
-    } catch (error) {
-      toast.error("Error sending verification code");
-    }
-  };
-
-  const verifyEmailCode = async () => {
-    try {
-      const res = await fetch("http://127.0.0.1:5000/verify_code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: verificationCode }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success("Email verified successfully!");
-        setEmailVerified(true);
-      } else {
-        toast.error(data.error || "Invalid code");
-      }
-    } catch (error) {
-      toast.error("Error verifying code");
-    }
-  };
-
+  // Step 1: Request OTP only (no user info sent yet)
   const handleRegister = async () => {
-    if (!emailVerified) {
-      toast.error("Please verify your email before registering.");
-      return;
-    }
-
     if (password !== confirmPassword) {
       toast.error("Passwords do not match!");
       return;
     }
 
-    const passwordPattern =
-      /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
-    if (!passwordPattern.test(password)) {
-      toast.error("Make a strong password");
+    // Password validation
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters long");
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      toast.error("Password must contain at least one uppercase letter");
+      return;
+    }
+    if (!/\d/.test(password)) {
+      toast.error("Password must contain at least one number");
+      return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      toast.error("Password must contain at least one special character");
       return;
     }
 
@@ -101,27 +105,53 @@ export default function Register() {
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/register", {
+      const res = await fetch("http://127.0.0.1:5000/send_otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          first_name: firstName,
-          last_name: lastName,
           email,
-          password,
-          image: image.split(",")[1],
+          first_name: firstName,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || "OTP sent to your email!");
+        setShowOtpModal(true);
+      } else {
+        toast.error(data.message || "Failed to send OTP");
+        }
+      } catch (error) {
+      toast.error("Error sending OTP");
+      }
+  };
+
+  // Step 2: Verify OTP & Register (now send OTP only)
+  const verifyAndRegister = async () => {
+    try {
+      const response = await fetch("http://127.0.0.1:5000/verify_Register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+        first_name: firstName,   
+        last_name: lastName,     
+        email,
+        password,
+        image: image.split(",")[1], 
+        otp: verificationCode, 
         }),
       });
 
       const data = await response.json();
       if (response.ok) {
         toast.success("Registration successful!");
+        setShowOtpModal(false);
         setTimeout(() => navigate("/login"), 2000);
       } else {
         toast.error(data.error || "Registration failed");
       }
     } catch (error) {
-      toast.error("Error registering user. Please try again.");
+      toast.error("Error during registration. Try again.");
     }
   };
 
@@ -198,79 +228,57 @@ export default function Register() {
               onChange={(e) => setLastName(e.target.value)}
             />
 
-            {/* Email + Send Code */}
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="Email Address"
-                className="flex-1 px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <button
-                onClick={sendVerificationCode}
-                className="bg-indigo-500 text-white px-4 py-2 rounded-xl hover:bg-indigo-600"
-              >
-                Send Code
-              </button>
-            </div>
+            <input
+              type="email"
+              placeholder="Email Address"
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
 
-            {/* OTP input */}
-            {otpSent && (
-              <div className="flex gap-2 mt-2">
+            <div className="space-y-4">
+              {/* Password Field */}
+              <div className="relative">
                 <input
-                  type="text"
-                  placeholder="Enter code"
-                  className="flex-1 px-4 py-2 rounded-xl border border-gray-300"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
-                  onClick={verifyEmailCode}
-                  className="bg-green-500 text-white px-4 py-2 rounded-xl hover:bg-green-600"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-3 flex items-center text-gray-500"
                 >
-                  Verify
+                  {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
                 </button>
               </div>
-            )}
 
-          <div className="space-y-4">
-            {/* Password Field */}
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-3 flex items-center text-gray-500"
-              >
-                {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
-              </button>
+              {/* Confirm Password Field */}
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm Password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
+                  className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                >
+                  {showConfirmPassword ? (
+                    <Eye size={20} />
+                  ) : (
+                    <EyeOff size={20} />
+                  )}
+                </button>
+              </div>
             </div>
-
-            {/* Confirm Password Field */}
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="Confirm Password"
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-300"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute inset-y-0 right-3 flex items-center text-gray-500"
-              >
-                {showConfirmPassword ? <Eye size={20} /> : <EyeOff size={20} />}
-              </button>
-            </div>
-          </div>
           </div>
 
           <div className="mt-6" data-aos="fade-left">
@@ -365,6 +373,53 @@ export default function Register() {
           </p>
         </div>
       </main>
+
+      {/* OTP Modal */}
+      {showOtpModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-white p-6 rounded-2xl shadow-lg w-96">
+            <h3 className="text-xl font-bold mb-4 text-indigo-600">
+              Verify Your Email
+            </h3>
+            <input
+              type="text"
+              placeholder="Enter OTP"
+              className="w-full px-4 py-2 rounded-xl border border-gray-300 mb-3"
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+            />
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={verifyAndRegister}
+                className="flex-1 bg-green-500 text-white py-2 rounded-xl hover:bg-green-600"
+              >
+                Verify & Register
+              </button>
+              <button
+                onClick={() => setShowOtpModal(false)}
+                className="flex-1 bg-gray-300 py-2 rounded-xl hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Resend OTP */}
+            <div className="text-center">
+              <button
+                onClick={handleResendOTP}
+                disabled={resendCooldown > 0 || resendLoading}
+                className={`text-indigo-600 font-semibold hover:underline disabled:text-gray-400`}
+              >
+                {resendCooldown > 0
+                  ? `Resend available in ${resendCooldown}s`
+                  : resendLoading
+                  ? "Resending..."
+                  : "Resend OTP"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

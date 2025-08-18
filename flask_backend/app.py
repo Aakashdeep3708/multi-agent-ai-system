@@ -120,59 +120,57 @@ def encode_face(image_bytes):
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")  # Your email
-app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")  # App password
+app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")  
+app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")  
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv("MAIL_SENDER")
 
 mail = Mail(app)
 
-otp_storage = {}
-verified_emails = set()
+otp_storage = {}  
 
-@app.route('/send_verification_code', methods=['POST'])
-def send_verification_code():
+# 1. Send OTP
+@app.route('/send_otp', methods=['POST'])
+def send_otp():
     data = request.json
     email = data.get("email")
+    username = data.get("first_name")
     
     if not email:
         return jsonify({"success": False, "message": "Email required"}), 400
+    
+    if email in otp_storage:
+        del otp_storage[email]
 
-    # Generate 6-digit OTP
+    # Check if user already exists
+    cursor.execute("SELECT id FROM userAuthentication WHERE email = ?", (email,))
+    if cursor.fetchone():
+        return jsonify({"success": False, "message": "Email already registered"}), 400
+
+    # Generate OTP
     otp = str(random.randint(100000, 999999))
-    otp_storage[email] = {"otp": otp, "expires": time.time() + 300}  # 5 min expiry
+    otp_storage[email] = {"otp": otp, "expires": time.time() + 300}  # valid 5 min
 
     try:
-        msg = Message("Your Verification Code", recipients=[email])
-        msg.body = f"Your verification code is {otp}. It will expire in 5 minutes."
+        msg = Message("Your One-Time Password (OTP) for SmartDesk Login", sender=app.config["MAIL_USERNAME"], recipients=[email])
+        msg.body = f"""Hello {username},
+
+                        Your One-Time Password (OTP) is: {otp}
+
+                        This code is valid for the next 5 minutes. 
+                        Please do not share this code with anyone for your account’s security.
+
+                        If you didn’t request this OTP, please ignore this email or contact support.
+
+                        Thank you,
+                        Team SmartDesk"""
         mail.send(msg)
         return jsonify({"success": True, "message": "Verification code sent"})
     except Exception as e:
         return jsonify({"success": False, "message": f"Failed to send email: {str(e)}"}), 500
 
-@app.route('/verify_code', methods=['POST'])
-def verify_code():
-    data = request.json
-    email = data.get("email")
-    entered_otp = data.get("code")
-
-    if email not in otp_storage:
-        return jsonify({"success": False, "message": "No OTP found. Please request a new one."}), 400
-    
-    stored_data = otp_storage[email]
-    
-    if time.time() > stored_data["expires"]:
-        del otp_storage[email]
-        return jsonify({"success": False, "message": "OTP expired"}), 400
-    
-    if entered_otp == stored_data["otp"]:
-        del otp_storage[email]
-        verified_emails.add(email)  # Mark email as verified
-        return jsonify({"success": True, "message": "Email verified successfully"})
-    else:
-        return jsonify({"success": False, "message": "Invalid OTP"}), 400
-
-@app.route("/register", methods=["POST"])
-def register():
+# 2. Verify OTP + Register User
+@app.route("/verify_Register", methods=["POST"])
+def verify_otp():
     try:
         data = request.json
         first_name = data.get("first_name")
@@ -180,23 +178,31 @@ def register():
         email = data.get("email")
         password = data.get("password")
         image_data = data.get("image")
+        otp = data.get("otp")
 
-        if not all([first_name, last_name, email, password, image_data]):
-            return jsonify({"error": "All fields are required"}), 400
+        # Check required fields
+        if not all([first_name, last_name, email, password, image_data, otp]):
+            return jsonify({"error": "All fields including OTP are required"}), 400
 
-        # Check if email was verified
-        if email not in verified_emails:
-            return jsonify({"error": "Email not verified"}), 400
+        # Check OTP
+        if email not in otp_storage:
+            return jsonify({"error": "No OTP request found"}), 400
 
-        # Check if user already exists
-        cursor.execute("SELECT id FROM userAuthentication WHERE email = ?", (email,))
-        if cursor.fetchone():
-            return jsonify({"error": "Email already registered"}), 400
+        stored_otp = otp_storage[email]
+        if time.time() > stored_otp["expires"]:
+            del otp_storage[email]
+            return jsonify({"error": "OTP expired"}), 400
+
+        if otp != stored_otp["otp"]:
+            return jsonify({"error": "Invalid OTP"}), 400
+
+        # OTP valid → delete from storage
+        del otp_storage[email]
 
         # Hash password
         hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-        # Decode image
+        # Decode image & extract embedding
         try:
             image_bytes = base64.b64decode(image_data)
             np_data = np.frombuffer(image_bytes, np.uint8)
@@ -207,7 +213,6 @@ def register():
         if image is None:
             return jsonify({"error": "Image decoding failed"}), 400
 
-        # Extract face embedding
         faces = face_app.get(image)
         if not faces:
             return jsonify({"error": "No face detected in the image"}), 400
@@ -215,7 +220,7 @@ def register():
         embedding = faces[0].normed_embedding
         embedding_bytes = embedding.tobytes()
 
-        # Save to DB
+        # Save user to DB
         cursor.execute(
             """INSERT INTO userAuthentication 
                (first_name, last_name, email, password_hash, role, image_embedding) 
@@ -224,14 +229,11 @@ def register():
         )
         conn.commit()
 
-        verified_emails.discard(email)  # Remove from verified list after use
-
         return jsonify({"message": "Registration successful!"}), 201
 
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/password-login", methods=["POST"])
 def password_login():
@@ -389,11 +391,15 @@ def delete_user(user_id):
     if result[0] == 'admin':
         return jsonify({"error": "Cannot delete admin users"}), 403
 
-    # Proceed to delete user
+    # First delete user logs
+    cursor.execute("DELETE FROM UserLogs WHERE user_id = ?", (user_id,))
+    
+    # Then delete user
     cursor.execute("DELETE FROM userAuthentication WHERE id = ?", (user_id,))
     conn.commit()
 
-    return jsonify({"message": "User deleted successfully"}), 200
+    return jsonify({"message": "User and related logs deleted successfully"}), 200
+
 
 # Store feedback
 @app.route('/api/feedback', methods=['POST'])
